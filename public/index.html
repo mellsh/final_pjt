@@ -11,13 +11,18 @@
         <header>
             <h1>GitHub 리포지토리 검색</h1>
             <input type="text" id="searchInput" placeholder="검색어를 입력하세요">
-            <button onclick="searchRepositories(event)">검색</button>
+            <button onclick="searchRepositories()">검색</button>
+            <button id="loginBtn" onclick="openLoginModal()">로그인</button>
+            <button id="registerBtn" onclick="openRegisterModal()">회원가입</button>
+            <button id="logoutBtn" style="display:none" onclick="logout()">로그아웃</button>
+
         </header>
 
         <section id="searchResults">
             <h2>검색 결과</h2>
             <div id="results"></div>
         </section>
+        <div id="bookmarksContainer"></div>
 
         <section id="bookmarks">
             <h2>내 북마크</h2>
@@ -25,12 +30,36 @@
         </section>
 
         <!-- 모달 -->
-        <div id="modal" class="modal">
+        <div id="modal" style="display:none;" class="modal">
             <div class="modal-content">
-                <p id="modalMessageText"></p>
-                <button onclick="closeModal()">확인</button>
+                <p id="modalMessage"></p>
+                <button id="closeModalButton">닫기</button>
             </div>
         </div>
+        
+        
+
+        <!-- 로그인 모달 -->
+<div id="loginModal" class="modal">
+    <div class="modal-content">
+        <h2>로그인</h2>
+        <input type="text" id="loginUsername" placeholder="아이디" />
+        <input type="password" id="loginPassword" placeholder="비밀번호" />
+        <button onclick="login()">로그인</button>
+        <button onclick="closeLoginModal()">닫기</button>
+    </div>
+</div>
+
+<!-- 회원가입 모달 -->
+<div id="registerModal" class="modal">
+    <div class="modal-content">
+        <h2>회원가입</h2>
+        <input type="text" id="registerUsername" placeholder="아이디" />
+        <input type="password" id="registerPassword" placeholder="비밀번호" />
+        <button onclick="register()">회원가입</button>
+        <button onclick="closeRegisterModal()">닫기</button>
+    </div>
+</div>
     </div>
 
     <script src="script.js"></script>
