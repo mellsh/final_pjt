@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub 리포지토리 검색 및 북마크</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>GitHub 리포지토리 검색</h1>
+            <input type="text" id="searchInput" placeholder="검색어를 입력하세요">
+            <button onclick="searchRepositories(event)">검색</button>
+        </header>
+
+        <section id="searchResults">
+            <h2>검색 결과</h2>
+            <div id="results"></div>
+        </section>
+
+        <section id="bookmarks">
+            <h2>내 북마크</h2>
+            <div id="bookmarkList"></div>
+        </section>
+
+        <!-- 모달 -->
+        <div id="modal" class="modal">
+            <div class="modal-content">
+                <p id="modalMessageText"></p>
+                <button onclick="closeModal()">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
