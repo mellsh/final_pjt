@@ -6,41 +6,12 @@ const cors = require('cors');
 const axios = require('axios');
 require('dotenv').config();
 
-// Express 서버 설정
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// SQLite3 데이터베이스 연결
 const db = new sqlite3.Database('./database.sqlite');
 
-// 테이블 생성
-db.serialize(() => {
-    // Users 테이블
-    db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT
-        )
-    `);
-
-    // Bookmarks 테이블
-    db.run(`
-        CREATE TABLE IF NOT EXISTS bookmarks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            repo_id INTEGER UNIQUE,
-            name TEXT,
-            owner TEXT,
-            full_name TEXT,
-            url TEXT,
-            user_id INTEGER,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-    `);
-});
-
-// 로그인, 회원가입을 위한 비밀번호 해시화
 const saltRounds = 10;
 
 // 회원가입
@@ -80,7 +51,6 @@ app.post('/login', (req, res) => {
             return res.status(400).json({ error: '로그인 실패: 잘못된 비밀번호' });
         }
 
-        // JWT 토큰 발급
         const token = jwt.sign({ userId: row.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
         res.json({ message: '로그인 성공', token });
     });
@@ -93,7 +63,7 @@ app.get('/search', async (req, res) => {
 
     try {
         const response = await axios.get('https://api.github.com/search/repositories', {
-            params: { q: query },
+            params: { q: query, per_page: 10 },
             headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
         });
 
@@ -103,55 +73,130 @@ app.get('/search', async (req, res) => {
     }
 });
 
-// 북마크 추가 (로그인된 사용자만 가능)
+// 북마크 추가
 app.post('/bookmarks', (req, res) => {
-  const { repo_id, name, owner, full_name, url, user_id } = req.body;
+    const { repo_id, name, owner, full_name, url, user_id } = req.body;
 
-  if (!repo_id || !name || !owner || !full_name || !url || !user_id) {
-      return res.status(400).json({ message: '필수 값이 누락되었습니다.' });
+    if (!repo_id || !name || !owner || !full_name || !url || !user_id) {
+        return res.status(400).json({ message: '필수 값이 누락되었습니다.' });
+    }
+
+    const query = `INSERT INTO bookmarks (repo_id, name, owner, full_name, url, user_id) 
+                   VALUES (?, ?, ?, ?, ?, ?)`;
+
+    db.run(query, [repo_id, name, owner, full_name, url, user_id], function(err) {
+        if (err) {
+            console.error('북마크 저장 중 오류 발생:', err);
+            return res.status(500).json({ message: '북마크 저장 실패' });
+        }
+
+        res.status(201).json({ message: '북마크가 성공적으로 저장되었습니다.' });
+    });
+});
+
+// 검색 시 검색어 저장 (로그인된 사용자만)
+app.post('/search-history', (req, res) => {
+  const { user_id, query } = req.body;
+
+  if (!user_id || !query) {
+      return res.status(400).json({ error: 'user_id와 검색어(query)가 필요합니다.' });
   }
 
-  const query = `INSERT INTO bookmarks (repo_id, name, owner, full_name, url, user_id) 
-                 VALUES (?, ?, ?, ?, ?, ?)`;
+  const insertQuery = `INSERT INTO search_history (user_id, query) VALUES (?, ?)`;
 
-  db.run(query, [repo_id, name, owner, full_name, url, user_id], function(err) {
+  db.run(insertQuery, [user_id, query], function (err) {
       if (err) {
-          console.error('북마크 저장 중 오류 발생:', err);
-          return res.status(500).json({ message: '북마크 저장 실패' });
+          return res.status(500).json({ error: '검색 기록 저장 실패', details: err.message });
       }
-
-      res.status(201).json({ message: '북마크가 성공적으로 저장되었습니다.' });
+      res.json({ message: '검색 기록 저장 완료' });
   });
 });
 
 
-// 북마크 목록 조회 (로그인된 사용자만)
-app.post('/bookmarks', (req, res) => {
-  const { repo_id, name, owner, full_name, url, user_id } = req.body;
+// 추천 API
+app.get('/recommendations', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
 
-  // 필수 데이터가 없는 경우
-  if (!repo_id || !name || !owner || !full_name || !url || !user_id) {
-      return res.status(400).json({ message: '필수 값이 누락되었습니다.' });
+  if (!token) {
+      return fetchTrendingRepos(res);
   }
 
-  // 데이터베이스에 저장
-  const query = `INSERT INTO bookmarks (repo_id, name, owner, full_name, url, user_id) 
-                 VALUES (?, ?, ?, ?, ?, ?)`;
+  try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userId = decoded.userId;
 
-  // 데이터베이스 연결 및 저장 (예시)
-  db.run(query, [repo_id, name, owner, full_name, url, user_id], function(err) {
-      if (err) {
-          console.error('북마크 저장 중 오류 발생:', err);
-          return res.status(500).json({ message: '북마크 저장 실패' });
-      }
+      db.all(`
+          SELECT DISTINCT full_name FROM bookmarks WHERE user_id = ?
+          UNION
+          SELECT DISTINCT query FROM search_history WHERE user_id = ?
+          LIMIT 8
+      `, [userId, userId], async (err, rows) => {
+          if (err) {
+              console.error('추천 데이터 조회 오류:', err);
+              return res.status(500).json({ error: '추천 데이터 조회 실패', details: err.message });
+          }
 
-      res.status(201).json({ message: '북마크가 성공적으로 저장되었습니다.' });
-  });
+          if (rows.length === 0) {
+              return fetchTrendingRepos(res);
+          }
+
+          const searchQueries = rows.map(row => row.full_name || row.query).join(' ');
+
+          try {
+              const response = await axios.get('https://api.github.com/search/repositories', {
+                  params: { q: searchQueries, per_page: 8 },
+                  headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
+              });
+
+              let recommendations = response.data.items;
+
+              if (recommendations.length < 5) {
+                  const extraResponse = await axios.get('https://api.github.com/search/repositories', {
+                      params: { q: 'stars:>10000', sort: 'stars', order: 'desc', per_page: 8 },
+                      headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
+                  });
+
+                  recommendations = recommendations.concat(extraResponse.data.items).slice(0, 8);
+              }
+
+              res.json(recommendations);
+          } catch (error) {
+              res.status(500).json({ error: 'GitHub API 요청 실패', details: error.response?.data || error.message });
+          }
+      });
+
+  } catch (error) {
+      return fetchTrendingRepos(res);
+  }
 });
 
 
+// 인기 리포지토리 가져오기 (최소 5개, 최대 8개)
+function fetchTrendingRepos(res) {
+    axios.get('https://api.github.com/search/repositories', {
+        params: { q: 'stars:>10000', sort: 'stars', order: 'desc', per_page: 8 },
+        headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
+    })
+    .then(response => {
+        const trendingRepos = response.data.items;
 
-// 서버 실행
+        // 최소 5개 이하일 경우 추가 요청
+        if (trendingRepos.length < 5) {
+            axios.get('https://api.github.com/search/repositories', {
+                params: { q: 'stars:>5000', sort: 'stars', order: 'desc', per_page: 8 },
+                headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
+            })
+            .then(extraResponse => {
+                res.json(trendingRepos.concat(extraResponse.data.items).slice(0, 8));
+            })
+            .catch(err => res.json(trendingRepos));
+        } else {
+            res.json(trendingRepos);
+        }
+    })
+    .catch(error => res.status(500).json({ error: '인기 리포지토리 조회 실패', details: error.response?.data || error.message }));
+}
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`서버 실행 중: http://localhost:${PORT}`);
