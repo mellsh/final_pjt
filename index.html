@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Repo Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <button id="loginBtn" onclick="showLoginForm()">Login</button>
+    <button id="logoutBtn" style="display: none;" onclick="logoutUser()">Logout</button>
+
+    <!-- 로그인/회원가입 모달 -->
+    <div id="authModal" style="display: none;">
+        <form id="loginForm" onsubmit="submitLogin(event)">
+            <input type="text" id="username" placeholder="Username" required />
+            <input type="password" id="password" placeholder="Password" required />
+            <button type="submit">Login</button>
+            <button type="button" onclick="showRegisterForm()">Go to Register</button>
+        </form>
+
+        <form id="registerForm" onsubmit="submitRegister(event)" style="display: none;">
+            <input type="text" id="registerUsername" placeholder="Username" required />
+            <input type="password" id="registerPassword" placeholder="Password" required />
+            <button type="submit">Register</button>
+            <button type="button" onclick="showLoginForm()">Go to Login</button>
+        </form>
+        <button id="closeModal" onclick="closeModal()">Close</button>
+    </div>
+
+    <h2>Search GitHub Repositories</h2>
+    <input type="text" id="searchQuery" placeholder="Search repositories" oninput="searchRepositories()">
+    <ul id="repoList"></ul>
+
+    <div>
+        <h3>추천 리포지토리</h3>
+        <ul id="recommendationsList"></ul>  <!-- 추천 리포지토리 목록 -->
+    </div>
+    
+    <div>
+        <h3>북마크 리포지토리</h3>
+        <ul id="bookmarksList"></ul>  <!-- 북마크 리포지토리 목록 -->
+    </div>
+    
+    <div>
+        <h3 style="display: none;">검색 결과</h3>
+        <ul id="searchResultsList"></ul>  <!-- 검색 결과 리포지토리 목록 -->
+    </div>
+    
+    
+
+    <script src="script.js"></script>
+</body>
+</html>

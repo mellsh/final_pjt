@@ -197,6 +197,111 @@ function fetchTrendingRepos(res) {
     .catch(error => res.status(500).json({ error: '인기 리포지토리 조회 실패', details: error.response?.data || error.message }));
 }
 
+// 북마크 조회 API (로그인된 사용자만)
+app.get('/bookmarks', (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+      return res.status(401).json({ error: '로그인이 필요합니다.' });
+  }
+
+  try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userId = decoded.userId;
+
+      db.all('SELECT * FROM bookmarks WHERE user_id = ?', [userId], (err, rows) => {
+          if (err) {
+              return res.status(500).json({ error: '북마크 조회 실패', details: err.message });
+          }
+          res.json(rows); // 북마크 목록 반환
+      });
+  } catch (error) {
+      return res.status(401).json({ error: '유효하지 않은 토큰' });
+  }
+});
+
+
+// 리포지토리의 폴더 및 파일 목록을 가져오는 API
+app.get('/repo/:owner/:repo/contents', async (req, res) => {
+  const { owner, repo } = req.params;
+  const { path = '' } = req.query;
+
+  try {
+      const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+          headers: {
+              Authorization: `token ${process.env.GITHUB_TOKEN}`
+          }
+      });
+      res.json(response.data);
+  } catch (error) {
+      console.error('GitHub API 요청 실패:', error.message); // 오류 메시지 출력
+      res.status(500).json({ error: 'GitHub API 요청 실패', details: error.message });
+  }
+});
+
+
+// 리포지토리 파일의 내용을 가져오는 API
+app.get('/repo/:owner/:repo/contents/:filePath', async (req, res) => {
+  const { owner, repo, filePath } = req.params;
+
+  try {
+      const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
+          headers: {
+              Authorization: `token ${GITHUB_TOKEN}`
+          }
+      });
+
+      const content = Buffer.from(response.data.content, 'base64').toString('utf8');
+      res.json({ content });
+  } catch (error) {
+      res.status(500).json({ error: 'GitHub API 요청 실패', details: error.message });
+  }
+});
+
+// 북마크 삭제 함수
+function deleteBookmarkFromDatabase(repoId) {
+  return new Promise((resolve, reject) => {
+      const query = 'DELETE FROM bookmarks WHERE id = ?';
+      
+      db.run(query, [repoId], function(err) {
+          if (err) {
+              console.error('DB 오류 발생:', err.message);  // DB 오류 로그 추가
+              reject(err);
+          } else {
+              if (this.changes > 0) {  // 삭제된 레코드가 있으면
+                  resolve(true);  // 성공
+              } else {
+                  resolve(false);  // 삭제된 레코드가 없으면
+              }
+          }
+      });
+  });
+}
+
+// 북마크 삭제 (경로 수정)
+app.delete('/bookmarks/:repoId', async (req, res) => { // 수정된 경로
+  const repoId = req.params.repoId;
+
+  try {
+      // DB에서 해당 repoId에 해당하는 북마크 삭제하는 로직
+      const result = await deleteBookmarkFromDatabase(repoId); 
+      
+      if (result) {
+          return res.json({ message: '북마크가 삭제되었습니다.' });
+      } else {
+          return res.status(404).json({ error: '북마크를 찾을 수 없습니다.' });
+      }
+  } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: '서버 오류' });
+  }
+});
+
+
+
+
+
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`서버 실행 중: http://localhost:${PORT}`);

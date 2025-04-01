@@ -1,9 +1,5 @@
-const sqlite3 = require("sqlite3").verbose();
-const db = new sqlite3.Database("./database.sqlite");
-
-// 테이블 생성
 db.serialize(() => {
-    // 사용자 테이블
+
     db.run(`
         CREATE TABLE IF NOT EXISTS users (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +22,7 @@ db.serialize(() => {
         )
     `);
 
-    // 검색 기록 테이블 추가 ✅
+    // 검색 기록 테이블
     db.run(`
         CREATE TABLE IF NOT EXISTS search_history (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,6 +32,9 @@ db.serialize(() => {
           FOREIGN KEY (user_id) REFERENCES users(id)
         )
     `);
-});
 
-module.exports = db;
+    // 인덱스 추가 (검색 성능 개선)
+    db.run(`
+        CREATE INDEX IF NOT EXISTS idx_user_id_search_history ON search_history(user_id);
+    `);
+});
