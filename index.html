@@ -9,7 +9,7 @@
 <body>
     <button id="loginBtn" onclick="showLoginForm()">Login</button>
     <button id="logoutBtn" style="display: none;" onclick="logoutUser()">Logout</button>
-
+ 
     <!-- 로그인/회원가입 모달 -->
     <div id="authModal" style="display: none;">
         <form id="loginForm" onsubmit="submitLogin(event)">
@@ -18,7 +18,7 @@
             <button type="submit">Login</button>
             <button type="button" onclick="showRegisterForm()">Go to Register</button>
         </form>
-
+ 
         <form id="registerForm" onsubmit="submitRegister(event)" style="display: none;">
             <input type="text" id="registerUsername" placeholder="Username" required />
             <input type="password" id="registerPassword" placeholder="Password" required />
@@ -27,26 +27,26 @@
         </form>
         <button id="closeModal" onclick="closeModal()">Close</button>
     </div>
-
+ 
     <h2>Search GitHub Repositories</h2>
     <input type="text" id="searchInput" placeholder="검색어 입력" />
     <ul id="searchResultsList"></ul>
-
+ 
     <div>
         <h3>추천 리포지토리</h3>
         <ul id="recommendationsList"></ul>
     </div>
-
+ 
     <div>
         <h3>북마크 리포지토리</h3>
         <ul id="bookmarksList"></ul>
     </div>
-
+ 
     <div>
         <h3 style="display: none;">검색 결과</h3>
         <ul id="searchResultsList"></ul>
     </div>
-
+ 
     <!-- 리포지토리 상세 정보 모달 -->
     <div id="repoModal" class="modal">
         <div class="modal-content">
@@ -60,7 +60,7 @@
             </div>
         </div>
     </div>
-
+ 
     <script src="script.js"></script>
 </body>
 </html>

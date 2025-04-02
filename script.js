@@ -21,7 +21,7 @@ async function submitLogin(event) {
     const password = document.getElementById("password").value;
 
     try {
-        const response = await fetch("http://localhost:3000/login", {
+        const response = await fetch(`${apiUrl}/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username, password })
@@ -176,11 +176,9 @@ async function loadBookmarks() {
 
         console.log("✅ 북마크 UI 업데이트 완료!");
     } catch (error) {
-        console.error("❌ 북마크 로딩 중 오류 발생:", error);
+        console.error("❌ 북마크 로드 중 오류 발생:", error);
     }
 }
-
-
 
 // 북마크 삭제
 function removeBookmark(repoId) {
@@ -210,6 +208,7 @@ function removeBookmark(repoId) {
     .catch(error => console.error("북마크 삭제 중 오류 발생:", error));
 }
 
+// 추천 리포지토리 가져오기
 function fetchRecommendations() {
     fetch(`${apiUrl}/recommendations`)
         .then(response => response.json())
@@ -227,7 +226,7 @@ function fetchRecommendations() {
                 recommendationsList.appendChild(listItem);
             });
         })
-        .catch(error => console.error("추천 리포지토리 로딩 중 오류 발생:", error));
+        .catch(error => console.error("추천 리포지토리 로드 중 오류 발생:", error));
 }
 
 async function addBookmark(repoId, name, owner, fullName, url) {
@@ -258,8 +257,6 @@ async function addBookmark(repoId, name, owner, fullName, url) {
         alert(result.message);
     }
 }
-
-
 
 // 모달 닫기
 function closeModal() {
@@ -337,7 +334,6 @@ function fetchFileContent(filePath) {
 function closeRepoModal() {
     document.getElementById("repoModal").style.display = "none";
 }
-
     
 function loadRecommendations() {
     console.log("추천 리포지토리 불러오기 실행!");  // 디버깅용 로그
@@ -368,80 +364,75 @@ function loadRecommendations() {
                 recommendationsList.appendChild(listItem);
             });
         })
-        .catch(error => console.error("추천 리포지토리 로딩 중 오류 발생:", error));
+        .catch(error => console.error("추천 리포지토리 로드 중 오류 발생:", error));
 }
 
-document.getElementById("searchBox").addEventListener("input", searchRepositories);
-
-    document.addEventListener("DOMContentLoaded", function () {
-        console.log("✅ DOM 로드 완료!");
+document.addEventListener("DOMContentLoaded", function () {
+    console.log("✅ DOM 로드 완료!");
     
-        // ✅ 검색 기능 정의
-        function searchRepositories(event) {
-            try {
-                const query = event.target?.value?.trim();
-                if (!query) return;
+    // ✅ 검색 기능 정의
+    function searchRepositories(event) {
+        try {
+            const query = event.target?.value?.trim();
+            if (!query) return;
     
-                fetch(`http://localhost:3000/search?query=${query}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!Array.isArray(data)) {
-                            throw new Error("잘못된 검색 응답");
-                        }
-                        console.log("🔍 검색 결과:", data);
-                        displaySearchResults(data);
-                    })
-                    .catch(error => console.error("🚨 검색 중 오류 발생:", error));
-            } catch (error) {
-                console.error("🚨 검색 실행 중 오류 발생:", error);
-            }
+            fetch(`${apiUrl}/search?query=${query}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!Array.isArray(data)) {
+                        throw new Error("잘못된 검색 응답");
+                    }
+                    console.log("🔍 검색 결과:", data);
+                    displaySearchResults(data);
+                })
+                .catch(error => console.error("🚨 검색 중 오류 발생:", error));
+        } catch (error) {
+            console.error("🚨 검색 실행 중 오류 발생:", error);
+        }
+    }
+    
+    // ✅ 검색 결과 표시 함수
+    function displaySearchResults(repositories) {
+        const resultsList = document.getElementById("searchResultsList");
+        if (!resultsList) {
+            console.error("❌ 오류: searchResultsList 요소를 찾을 수 없음!");
+            return;
         }
     
-        // ✅ 검색 결과 표시 함수
-        function displaySearchResults(repositories) {
-            const resultsList = document.getElementById("recommendationsList");
-            if (!resultsList) {
-                console.error("❌ 오류: recommendationsList 요소를 찾을 수 없음!");
-                return;
-            }
+        resultsList.innerHTML = ""; 
     
-            resultsList.innerHTML = ""; 
+        repositories.forEach(repo => {
+            const listItem = document.createElement("li");
+            listItem.innerHTML = `
+                <a href="#" onclick="openRepoModal('${repo.owner}', '${repo.name}')">
+                    ${repo.name}
+                </a>
+                <p>${repo.description ? repo.description : "설명이 제공되지 않습니다."}</p>
+                <p>소유자: ${repo.owner}</p>
+                <button onclick="addBookmark('${repo.id}', '${repo.name}', '${repo.owner}', '${repo.full_name}', '${repo.url}')">
+                    북마크 추가
+                </button>
+            `;
+            resultsList.appendChild(listItem);
+        });
     
-            repositories.forEach(repo => {
-                const listItem = document.createElement("li");
-                listItem.innerHTML = `
-                    <a href="#" onclick="openRepoModal('${repo.owner}', '${repo.name}')">
-                        ${repo.name}
-                    </a>
-                    <p>${repo.description ? repo.description : "설명이 제공되지 않습니다."}</p>
-                    <p>소유자: ${repo.owner}</p>
-                    <button onclick="addBookmark('${repo.id}', '${repo.name}', '${repo.owner}', '${repo.full_name}', '${repo.url}')">
-                        북마크 추가
-                    </button>
-                `;
-                resultsList.appendChild(listItem);
-            });
+        console.log("✅ 검색 결과가 화면에 추가됨!");
+    }
     
-            console.log("✅ 검색 결과가 화면에 추가됨!");
-        }
-    
-        // ✅ 검색창 이벤트 리스너 추가
-        const searchInput = document.getElementById("searchInput");
-        if (searchInput) {
-            searchInput.addEventListener("input", searchRepositories);
-        } else {
-            console.error("❌ 오류: 검색 입력창(searchInput)을 찾을 수 없음!");
-        }
-    });
-    
-
-
+    // ✅ 검색창 이벤트 리스너 추가
+    const searchInput = document.getElementById("searchInput");
+    if (searchInput) {
+        searchInput.addEventListener("input", searchRepositories);
+    } else {
+        console.error("❌ 오류: 검색 입력창(searchInput)을 찾을 수 없음!");
+    }
+});
 
 document.addEventListener("DOMContentLoaded", () => {
     console.log("페이지 로드 완료");
     toggleLogin();
+    loadRecommendations();
     if (localStorage.getItem('token')) {
         loadBookmarks();  // 로그인한 경우 북마크 불러오기
-        loadRecommendations();
     }
 });
