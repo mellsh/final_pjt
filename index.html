@@ -29,25 +29,37 @@
     </div>
 
     <h2>Search GitHub Repositories</h2>
-    <input type="text" id="searchQuery" placeholder="Search repositories" oninput="searchRepositories()">
-    <ul id="repoList"></ul>
+    <input type="text" id="searchInput" placeholder="검색어 입력" />
+    <ul id="searchResultsList"></ul>
 
     <div>
         <h3>추천 리포지토리</h3>
-        <ul id="recommendationsList"></ul>  <!-- 추천 리포지토리 목록 -->
+        <ul id="recommendationsList"></ul>
     </div>
-    
+
     <div>
         <h3>북마크 리포지토리</h3>
-        <ul id="bookmarksList"></ul>  <!-- 북마크 리포지토리 목록 -->
+        <ul id="bookmarksList"></ul>
     </div>
-    
+
     <div>
         <h3 style="display: none;">검색 결과</h3>
-        <ul id="searchResultsList"></ul>  <!-- 검색 결과 리포지토리 목록 -->
+        <ul id="searchResultsList"></ul>
     </div>
-    
-    
+
+    <!-- 리포지토리 상세 정보 모달 -->
+    <div id="repoModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeRepoModal()">&times;</span>
+            <h2 id="repoTitle"></h2>
+            <button id="backButton" style="display: none;" onclick="goBack()">🔙 뒤로 가기</button>
+            <ul id="repoContents"></ul>
+            <div id="fileViewer" style="display: none;">
+                <h3 id="fileName"></h3>
+                <pre id="fileContent"></pre>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>

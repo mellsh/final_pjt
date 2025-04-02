@@ -1,4 +1,4 @@
-const apiUrl = 'http://localhost:3000';  // 백엔드 API URL
+const apiUrl = 'http://localhost:3000';  // 중복 선언 방지, 한 번만 선언
 
 // 로그인 폼 표시
 function showLoginForm() {
@@ -13,29 +13,33 @@ function showRegisterForm() {
     document.getElementById('registerForm').style.display = 'block';
 }
 
-// 로그인 처리
+// ✅ 로그인 요청 (토큰 저장 및 북마크 로드)
 async function submitLogin(event) {
     event.preventDefault();
-    const username = document.getElementById('username').value;
-    const password = document.getElementById('password').value;
 
-    const response = await fetch(`${apiUrl}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-    });
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
 
-    const result = await response.json();
-    if (response.ok) {
-        localStorage.setItem('token', result.token);
-        toggleLogin();
-        fetchBookmarks();
-        fetchRecommendations();
-        closeModal();
-    } else {
-        alert(result.error);
+    try {
+        const response = await fetch("http://localhost:3000/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+
+        localStorage.setItem("token", result.token);
+        console.log("로그인 성공!");
+        
+        // ✅ 로그인 후 북마크 불러오기
+        loadBookmarks();
+    } catch (error) {
+        console.error("로그인 실패:", error);
     }
 }
+
 
 // 회원가입 처리
 async function submitRegister(event) {
@@ -66,7 +70,7 @@ function logoutUser() {
     document.getElementById('recommendationsList').innerHTML = '';
 }
 
-// 로그인 상태에 따라 버튼 전환
+// 로그인 상태 확인 및 버튼 전환
 function toggleLogin() {
     const token = localStorage.getItem('token');
     if (token) {
@@ -78,187 +82,366 @@ function toggleLogin() {
     }
 }
 
-// 검색어로 GitHub 리포지토리 검색
-async function searchRepositories() {
-    const query = document.getElementById('searchQuery').value;
-    if (!query) return;
-
-    const response = await fetch(`${apiUrl}/search?query=${query}`);
-    const repos = await response.json();
-
-    const repoList = document.getElementById('repoList');
-    repoList.innerHTML = '';
-    repos.forEach(repo => {
-        const listItem = document.createElement('li');
-        listItem.innerHTML = `
-            <a href="${repo.html_url}" target="_blank">${repo.name}</a><br>
-            Owner: ${repo.owner.login}
-        `;
-        const bookmarkButton = document.createElement('button');
-        bookmarkButton.textContent = 'Bookmark';
-        bookmarkButton.onclick = () => addBookmark(repo.id, repo.name, repo.owner.login, repo.full_name, repo.html_url);
-        listItem.appendChild(bookmarkButton);
-        repoList.appendChild(listItem);
-    });
+// 토큰에서 사용자 ID 추출
+function getUserIdFromToken(token) {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.userId || null;
+    } catch (error) {
+        console.error("토큰 파싱 오류:", error);
+        return null;
+    }
 }
 
-// 북마크 추가
-async function addBookmark(repoId) {
-    const token = localStorage.getItem('token');  // localStorage에서 토큰 가져오기
-    const userId = localStorage.getItem('user_id');  // 사용자의 user_id 가져오기
-
-    if (!token || !userId) {
-        console.error('로그인이 필요합니다.');
+// 북마크 추가 및 삭제 토글
+async function toggleBookmark(repoId, name, owner, url) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        alert('로그인이 필요합니다.');
         return;
     }
 
-    fetch(`${apiUrl}/bookmarks`, {
+    const userId = getUserIdFromToken(token);
+    if (!userId) {
+        alert('잘못된 사용자 정보입니다.');
+        return;
+    }
+
+    const response = await fetch(`${apiUrl}/bookmarks`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ user_id: userId, repo_id: repoId })
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('북마크 추가 실패');
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log(data.message);
-        // UI 업데이트
-    })
-    .catch(error => {
-        console.error('오류 발생:', error);
-    });
-}
-
-// 토큰에서 사용자 ID 추출
-function getUserIdFromToken(token) {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.userId;
-}
-
-// 북마크 목록 가져오기
-async function fetchBookmarks() {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    const response = await fetch(`${apiUrl}/bookmarks`, {
-        headers: { Authorization: `Bearer ${token}` }
+        body: JSON.stringify({ user_id: userId, repo_id: repoId, name, owner, url })
     });
 
-    if (!response.ok) {
-        console.error('북마크 조회 실패');
-        return;
-    }
-
-    const bookmarks = await response.json();
-    const bookmarksList = document.getElementById('bookmarksList');
-    bookmarksList.innerHTML = '';  // 기존 내용 지우기
-
-    if (bookmarks.length === 0) {
-        bookmarksList.innerHTML = '<li>북마크가 없습니다.</li>';
+    const result = await response.json();
+    if (response.ok) {
+        alert('북마크 추가 성공');
+        loadBookmarks();
     } else {
-        bookmarks.forEach(bookmark => {
-            const listItem = document.createElement('li');
-            listItem.innerHTML = `
-                <a href="${bookmark.url}" target="_blank">${bookmark.full_name}</a><br>
-                Owner: ${bookmark.owner}
-            `;
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = 'Delete';
-            deleteButton.onclick = () => deleteBookmark(bookmark.id);
-            listItem.appendChild(deleteButton);
+        alert(result.message);
+    }
+}
 
+// 북마크 목록 가져오기 (디버깅 코드 추가)
+async function loadBookmarks() {
+    try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+            console.log("🚨 로그인 필요! 북마크 로드 중단.");
+            return;
+        }
+
+        console.log("✅ 북마크 불러오기 요청 시작");
+
+        const response = await fetch(`${apiUrl}/bookmarks`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error(`서버 응답 오류: ${response.status}`);
+        }
+
+        const bookmarks = await response.json();
+        
+        console.log("📌 받은 북마크 데이터:", bookmarks);
+
+        // ✅ bookmarks가 배열인지 확인
+        if (!Array.isArray(bookmarks)) {
+            throw new Error("올바른 데이터 형식이 아닙니다.");
+        }
+
+        const bookmarksList = document.getElementById("bookmarksList");
+
+        // ✅ bookmarksList 요소가 존재하는지 확인
+        if (!bookmarksList) {
+            console.error("❌ bookmarksList 요소를 찾을 수 없습니다!");
+            return;
+        }
+
+        bookmarksList.innerHTML = ""; // 기존 목록 초기화
+
+        // 📌 북마크 목록 UI 업데이트
+        bookmarks.forEach(bookmark => {
+            const listItem = document.createElement("li");
+            listItem.innerHTML = `
+                <a href="${bookmark.url}" target="_blank">${bookmark.name}</a>
+                <p>소유자: ${bookmark.owner}</p>
+                <button onclick="removeBookmark('${bookmark.id}')">삭제</button>
+            `;
             bookmarksList.appendChild(listItem);
         });
+
+        console.log("✅ 북마크 UI 업데이트 완료!");
+    } catch (error) {
+        console.error("❌ 북마크 로딩 중 오류 발생:", error);
     }
 }
 
-// 예시로 deleteBookmark 함수가 있을 경우
-async function deleteBookmark(repoId) {
-    const token = localStorage.getItem('token');  // localStorage에서 토큰 가져오기
-    const userId = localStorage.getItem('user_id');  // 사용자의 user_id 가져오기
 
-    if (!token || !userId) {
-        console.error('로그인이 필요합니다.');
+
+// 북마크 삭제
+function removeBookmark(repoId) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        alert('로그인이 필요합니다.');
         return;
     }
 
     fetch(`${apiUrl}/bookmarks/${repoId}`, {
-        method: 'DELETE',
-        headers: {
+        method: "DELETE",
+        headers: { 
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ user_id: userId })  // user_id를 함께 보내기
+        }
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('북마크 삭제 실패');
+            throw new Error("삭제 실패: " + response.status);
         }
         return response.json();
     })
     .then(data => {
-        console.log(data.message);
-        // UI 업데이트
+        alert(data.message);
+        loadBookmarks();
     })
-    .catch(error => {
-        console.error('오류 발생:', error);
-    });
+    .catch(error => console.error("북마크 삭제 중 오류 발생:", error));
 }
 
+function fetchRecommendations() {
+    fetch(`${apiUrl}/recommendations`)
+        .then(response => response.json())
+        .then(repos => {
+            const recommendationsList = document.getElementById("recommendationsList");
+            recommendationsList.innerHTML = "";
+            
+            repos.forEach(repo => {
+                const listItem = document.createElement("li");
+                listItem.innerHTML = `
+                    <a href="${repo.url}" target="_blank">${repo.name}</a>
+                    <p>${repo.description ? repo.description : "설명이 제공되지 않습니다."}</p>
+                    <p>소유자: ${repo.owner}</p>
+                `;
+                recommendationsList.appendChild(listItem);
+            });
+        })
+        .catch(error => console.error("추천 리포지토리 로딩 중 오류 발생:", error));
+}
 
-
-
-
-// 추천 리포지토리 가져오기
-async function fetchRecommendations() {
+async function addBookmark(repoId, name, owner, fullName, url) {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${apiUrl}/recommendations`, {
-        headers: { Authorization: `Bearer ${token}` }
-    });
+    const userId = localStorage.getItem('user_id');
 
-    if (!response.ok) {
-        console.error('추천 리포지토리 조회 실패');
+    if (!token || !userId) {
+        alert('로그인이 필요합니다.');
         return;
     }
 
-    const recommendations = await response.json();
-    const recommendationsList = document.getElementById('recommendationsList');
-    recommendationsList.innerHTML = '';  // 기존 내용 지우기
+    console.log("북마크 추가 요청:", { repoId, name, owner, fullName, url });
 
-    if (recommendations.length === 0) {
-        recommendationsList.innerHTML = '<li>추천 리포지토리가 없습니다.</li>';
+    const response = await fetch(`${apiUrl}/bookmarks`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_id: userId, repo_id: repoId, name, owner, full_name: fullName, url })
+    });
+
+    const result = await response.json();
+    if (response.ok) {
+        alert('북마크 추가 성공');
+        loadBookmarks();  // 북마크 목록 새로고침
     } else {
-        recommendations.forEach(repo => {
-            const listItem = document.createElement('li');
-            listItem.innerHTML = `
-                <a href="${repo.html_url}" target="_blank">${repo.name}</a><br>
-                Owner: ${repo.owner.login}
-            `;
-            const bookmarkButton = document.createElement('button');
-            bookmarkButton.textContent = 'Bookmark';
-            bookmarkButton.onclick = () => addBookmark(repo.id, repo.name, repo.owner.login, repo.full_name, repo.html_url);
-            listItem.appendChild(bookmarkButton);
-            recommendationsList.appendChild(listItem);
-        });
+        alert(result.message);
     }
 }
+
+
 
 // 모달 닫기
 function closeModal() {
     document.getElementById('authModal').style.display = 'none';
 }
 
-// 초기화: 로그인 상태에 따라 버튼 전환 및 북마크, 추천 리포지토리 로드
-document.addEventListener('DOMContentLoaded', () => {
+let currentPath = "";  // 현재 탐색 중인 경로
+let repoOwner = "";
+let repoName = "";
+let pathStack = [];  // 뒤로 가기 기능을 위한 경로 스택
+
+// 리포지토리 클릭 시 모달 열기
+function openRepoModal(owner, repo) {
+    repoOwner = owner;
+    repoName = repo;
+    currentPath = ""; // 최상위 디렉터리부터 시작
+    pathStack = [];
+    fetchRepoContents();
+    document.getElementById("repoModal").style.display = "block";
+}
+
+// 리포지토리 내부 파일 및 폴더 가져오기
+function fetchRepoContents() {
+    fetch(`/repo-contents?owner=${repoOwner}&repo=${repoName}&path=${currentPath}`)
+        .then(response => response.json())
+        .then(data => {
+            const repoContents = document.getElementById("repoContents");
+            repoContents.innerHTML = "";
+
+            data.forEach(item => {
+                const li = document.createElement("li");
+                li.textContent = item.name;
+                li.onclick = () => {
+                    if (item.type === "dir") {
+                        enterDirectory(item.name);
+                    } else {
+                        fetchFileContent(item.path);
+                    }
+                };
+                repoContents.appendChild(li);
+            });
+
+            document.getElementById("backButton").style.display = pathStack.length > 0 ? "block" : "none";
+            document.getElementById("fileViewer").style.display = "none";
+        });
+}
+
+// 디렉터리 이동
+function enterDirectory(dirName) {
+    pathStack.push(currentPath);
+    currentPath = currentPath ? `${currentPath}/${dirName}` : dirName;
+    fetchRepoContents();
+}
+
+// 뒤로 가기
+function goBack() {
+    if (pathStack.length > 0) {
+        currentPath = pathStack.pop();
+        fetchRepoContents();
+    }
+}
+
+// 파일 내용 가져오기
+function fetchFileContent(filePath) {
+    fetch(`/file-content?owner=${repoOwner}&repo=${repoName}&path=${filePath}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("fileViewer").style.display = "block";
+            document.getElementById("fileName").textContent = filePath;
+            document.getElementById("fileContent").textContent = data.content;
+        });
+}
+
+// 모달 닫기
+function closeRepoModal() {
+    document.getElementById("repoModal").style.display = "none";
+}
+
+    
+function loadRecommendations() {
+    console.log("추천 리포지토리 불러오기 실행!");  // 디버깅용 로그
+
+    fetch(`${apiUrl}/recommendations`)
+        .then(response => response.json())
+        .then(repos => {
+            console.log("받은 추천 리포지토리 데이터:", repos); // 데이터 확인용 로그
+
+            const recommendationsList = document.getElementById("recommendationsList");
+            if (!recommendationsList) {
+                console.error("recommendationsList 요소를 찾을 수 없음!");
+                return;
+            }
+
+            recommendationsList.innerHTML = "";  // 기존 목록 비우기
+
+            repos.forEach(repo => {
+                const listItem = document.createElement("li");
+                listItem.innerHTML = `
+                    <a href="${repo.url}" target="_blank">${repo.name}</a>
+                    <p>${repo.description ? repo.description : "설명이 제공되지 않습니다."}</p>
+                    <p>소유자: ${repo.owner}</p>
+                    <button onclick="addBookmark('${repo.id}', '${repo.name}', '${repo.owner}', '${repo.full_name}', '${repo.url}')">
+                        북마크 추가
+                    </button>
+                `;
+                recommendationsList.appendChild(listItem);
+            });
+        })
+        .catch(error => console.error("추천 리포지토리 로딩 중 오류 발생:", error));
+}
+
+document.getElementById("searchBox").addEventListener("input", searchRepositories);
+
+    document.addEventListener("DOMContentLoaded", function () {
+        console.log("✅ DOM 로드 완료!");
+    
+        // ✅ 검색 기능 정의
+        function searchRepositories(event) {
+            try {
+                const query = event.target?.value?.trim();
+                if (!query) return;
+    
+                fetch(`http://localhost:3000/search?query=${query}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!Array.isArray(data)) {
+                            throw new Error("잘못된 검색 응답");
+                        }
+                        console.log("🔍 검색 결과:", data);
+                        displaySearchResults(data);
+                    })
+                    .catch(error => console.error("🚨 검색 중 오류 발생:", error));
+            } catch (error) {
+                console.error("🚨 검색 실행 중 오류 발생:", error);
+            }
+        }
+    
+        // ✅ 검색 결과 표시 함수
+        function displaySearchResults(repositories) {
+            const resultsList = document.getElementById("recommendationsList");
+            if (!resultsList) {
+                console.error("❌ 오류: recommendationsList 요소를 찾을 수 없음!");
+                return;
+            }
+    
+            resultsList.innerHTML = ""; 
+    
+            repositories.forEach(repo => {
+                const listItem = document.createElement("li");
+                listItem.innerHTML = `
+                    <a href="#" onclick="openRepoModal('${repo.owner}', '${repo.name}')">
+                        ${repo.name}
+                    </a>
+                    <p>${repo.description ? repo.description : "설명이 제공되지 않습니다."}</p>
+                    <p>소유자: ${repo.owner}</p>
+                    <button onclick="addBookmark('${repo.id}', '${repo.name}', '${repo.owner}', '${repo.full_name}', '${repo.url}')">
+                        북마크 추가
+                    </button>
+                `;
+                resultsList.appendChild(listItem);
+            });
+    
+            console.log("✅ 검색 결과가 화면에 추가됨!");
+        }
+    
+        // ✅ 검색창 이벤트 리스너 추가
+        const searchInput = document.getElementById("searchInput");
+        if (searchInput) {
+            searchInput.addEventListener("input", searchRepositories);
+        } else {
+            console.error("❌ 오류: 검색 입력창(searchInput)을 찾을 수 없음!");
+        }
+    });
+    
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("페이지 로드 완료");
     toggleLogin();
     if (localStorage.getItem('token')) {
-        fetchBookmarks();
-        fetchRecommendations();
+        loadBookmarks();  // 로그인한 경우 북마크 불러오기
+        loadRecommendations();
     }
 });

@@ -1,3 +1,8 @@
+html, body {
+    overflow: auto !important;
+    height: auto !important;
+  }
+
 body {
     background-color: #2f2f2f;
     color: #fff;
@@ -17,18 +22,18 @@ h2, h3 {
 }
 
 button {
-    background-color: #9b59b6;  /* 보라색 */
+    background-color: #9b59b6;
     color: white;
     border: none;
     padding: 10px 20px;
-    border-radius: 20px;  /* 둥근 버튼 */
+    border-radius: 20px;
     cursor: pointer;
     margin: 10px;
     transition: background-color 0.3s;
 }
 
 button:hover {
-    background-color: #8e44ad;  /* 버튼 hover 시 색상 */
+    background-color: #8e44ad;
 }
 
 input {
@@ -59,7 +64,7 @@ li {
     background-color: #333;
     padding: 10px;
     border-radius: 10px;
-    width: 200px;  /* 각 아이템 크기 */
+    width: 200px;
     text-align: center;
 }
 
@@ -100,3 +105,56 @@ form {
 #closeModal:hover {
     background-color: #c0392b;
 }
+
+/* 🔹 리포지토리 상세 모달 스타일 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 10% auto;
+    padding: 20px;
+    width: 50%;
+    border-radius: 10px;
+    color: black;
+}
+
+.close {
+    float: right;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+#repoContents {
+    list-style-type: none;
+    padding: 0;
+}
+
+#repoContents li {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    cursor: pointer;
+}
+
+#repoContents li:hover {
+    background-color: #f4f4f4;
+}
+
+#fileViewer {
+    background-color: #222;
+    color: #fff;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 10px;
+    overflow-x: auto;
+    max-height: 400px;
+}
+

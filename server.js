@@ -14,6 +14,15 @@ const db = new sqlite3.Database('./database.sqlite');
 
 const saltRounds = 10;
 
+const session = require('express-session');
+
+app.use(session({
+    secret: 'your_secret_key',
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // HTTPS 환경이라면 true로 설정
+}));
+
 // 회원가입
 app.post('/register', async (req, res) => {
     const { username, password } = req.body;
@@ -35,25 +44,26 @@ app.post('/register', async (req, res) => {
 
 // 로그인
 app.post('/login', (req, res) => {
-    const { username, password } = req.body;
+  const { username, password } = req.body;
 
-    if (!username || !password) {
-        return res.status(400).json({ error: '이름과 비밀번호를 입력해주세요.' });
-    }
+  db.get('SELECT * FROM users WHERE username = ?', [username], async (err, row) => {
+      if (err || !row || !(await bcrypt.compare(password, row.password))) {
+          return res.status(400).json({ error: '로그인 실패' });
+      }
 
-    const query = 'SELECT * FROM users WHERE username = ?';
-    db.get(query, [username], async (err, row) => {
-        if (err) {
-            return res.status(500).json({ error: '로그인 실패', details: err.message });
-        }
+      const token = jwt.sign({ userId: row.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        if (!row || !(await bcrypt.compare(password, row.password))) {
-            return res.status(400).json({ error: '로그인 실패: 잘못된 비밀번호' });
-        }
+      res.json({ message: '로그인 성공', token, userId: row.id });
+  });
+});
 
-        const token = jwt.sign({ userId: row.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        res.json({ message: '로그인 성공', token });
-    });
+
+app.get('/check-session', (req, res) => {
+  if (req.session.userId) {
+      res.json({ loggedIn: true, userId: req.session.userId });
+  } else {
+      res.json({ loggedIn: false });
+  }
 });
 
 // 검색 API (GitHub 리포지토리 검색)
@@ -197,27 +207,54 @@ function fetchTrendingRepos(res) {
     .catch(error => res.status(500).json({ error: '인기 리포지토리 조회 실패', details: error.response?.data || error.message }));
 }
 
-// 북마크 조회 API (로그인된 사용자만)
-app.get('/bookmarks', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
+// 북마크 목록 조회 (리포지토리 설명 추가)
+// 북마크 목록 조회 (리포지토리 설명 추가)
+app.get('/bookmarks', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: '로그인이 필요합니다.' });
   }
 
+  const token = authHeader.split(' ')[1];
   try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const userId = decoded.userId;
 
-      db.all('SELECT * FROM bookmarks WHERE user_id = ?', [userId], (err, rows) => {
+      db.all('SELECT repo_id, name, owner, full_name, url FROM bookmarks WHERE user_id = ?', [userId], async (err, rows) => {
           if (err) {
-              return res.status(500).json({ error: '북마크 조회 실패', details: err.message });
+              return res.status(500).json({ error: '북마크 목록 조회 실패', details: err.message });
           }
-          res.json(rows); // 북마크 목록 반환
+          if (!rows || rows.length === 0) {
+              return res.json([]);
+          }
+
+          const bookmarks = rows.map(row => ({
+              id: row.repo_id,
+              name: row.name,
+              owner: row.owner,
+              full_name: row.full_name,
+              url: row.url
+          }));
+          
+          res.json(bookmarks);
       });
   } catch (error) {
       return res.status(401).json({ error: '유효하지 않은 토큰' });
   }
 });
+
+
+// 영어를 한국어로 번역하는 함수 (예제: OpenAI API 활용)
+async function translateToKorean(text) {
+  try {
+      const response = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=en|ko');
+      const data = await response.json();
+      return data.responseData.translatedText || text;
+  } catch (error) {
+      return text; // 번역 실패 시 원문 그대로 반환
+  }
+}
+
 
 
 // 리포지토리의 폴더 및 파일 목록을 가져오는 API
@@ -277,30 +314,73 @@ function deleteBookmarkFromDatabase(repoId) {
   });
 }
 
-// 북마크 삭제 (경로 수정)
-app.delete('/bookmarks/:repoId', async (req, res) => { // 수정된 경로
-  const repoId = req.params.repoId;
+// 북마크 삭제 (토큰 검증 추가)
+app.delete('/bookmarks/:repoId', async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) {
+      return res.status(401).json({ error: '로그인이 필요합니다.' });
+  }
 
   try {
-      // DB에서 해당 repoId에 해당하는 북마크 삭제하는 로직
-      const result = await deleteBookmarkFromDatabase(repoId); 
-      
-      if (result) {
-          return res.json({ message: '북마크가 삭제되었습니다.' });
-      } else {
-          return res.status(404).json({ error: '북마크를 찾을 수 없습니다.' });
-      }
-  } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: '서버 오류' });
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userId = decoded.userId;
+      const repoId = req.params.repoId;
+
+      // 사용자의 북마크인지 확인 후 삭제
+      db.run('DELETE FROM bookmarks WHERE repo_id = ? AND user_id = ?', [repoId, userId], function (err) {
+          if (err) {
+              return res.status(500).json({ error: '북마크 삭제 실패', details: err.message });
+          }
+          if (this.changes === 0) {
+              return res.status(404).json({ error: '북마크를 찾을 수 없습니다.' });
+          }
+          res.json({ message: '북마크 삭제 완료' });
+      });
+  } catch (error) {
+      return res.status(401).json({ error: '유효하지 않은 토큰' });
   }
 });
 
+// 리포지토리의 폴더 및 파일 목록을 가져오는 API
+app.get('/repo/:owner/:repo/contents', async (req, res) => {
+  const { owner, repo } = req.params;
+  const { path = '' } = req.query;
 
+  try {
+      const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+          headers: {
+              Authorization: `token ${process.env.GITHUB_TOKEN}`
+          }
+      });
+      res.json(response.data);
+  } catch (error) {
+      console.error('GitHub API 요청 실패:', error.message);
+      res.status(500).json({ error: 'GitHub API 요청 실패', details: error.message });
+  }
+});
 
+// 리포지토리 파일의 내용을 가져오는 API
+app.get('/repo/:owner/:repo/file', async (req, res) => {
+  const { owner, repo } = req.params;
+  const { path } = req.query;
 
+  if (!path) {
+      return res.status(400).json({ error: '파일 경로가 필요합니다.' });
+  }
 
+  try {
+      const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+          headers: {
+              Authorization: `token ${process.env.GITHUB_TOKEN}`
+          }
+      });
 
+      const content = Buffer.from(response.data.content, 'base64').toString('utf8');
+      res.json({ content });
+  } catch (error) {
+      res.status(500).json({ error: 'GitHub API 요청 실패', details: error.message });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
