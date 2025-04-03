@@ -1,24 +1,46 @@
 const apiUrl = 'http://localhost:3000';  // API 엔드포인트
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // .env 파일에서 GitHub API 토큰 가져오기
+
+// 전역 변수로 owner와 repo를 저장
+let currentOwner = '';
+let currentRepo = '';
+let currentPath = '';
+let pathStack = [];
+
+// 리포지토리 설명을 한국어로 번역하는 함수
+async function translateDescription(description) {
+    // TODO: 번역 API를 사용하여 description을 한국어로 번역
+    // 예시: const translatedDescription = await translateApi.translate(description, 'ko');
+    // 현재는 번역 API가 없으므로 임시로 description을 그대로 반환
+    return description;
+}
 
 // 추천 리포지토리 가져오기
-function loadRecommendations() {
-    fetch(`${apiUrl}/recommendations`)
-        .then(response => response.json())
-        .then(repos => {
-            const recommendationsList = document.getElementById("recommendationsList");
-            recommendationsList.innerHTML = "";
-            
-            repos.forEach(repo => {
-                const listItem = document.createElement("li");
-                listItem.innerHTML = `
-                    <a href="#" onclick="openRepoModal('${repo.owner.login}', '${repo.name}')">${repo.name}</a>
-                    <p>${repo.description ? repo.description : "설명이 제공되지 않습니다."}</p>
-                    <p>소유자: ${repo.owner.login}</p>
-                `;
-                recommendationsList.appendChild(listItem);
-            });
-        })
-        .catch(error => console.error("추천 리포지토리 로드 중 오류 발생:", error));
+async function loadRecommendations() {
+    try {
+        const response = await fetch(`${apiUrl}/recommendations`);
+        if (!response.ok) {
+            throw new Error(`추천 리포지토리 로드 실패: ${response.status} ${response.statusText}`);
+        }
+        const repos = await response.json();
+        const recommendationsList = document.getElementById("recommendationsList");
+        recommendationsList.innerHTML = "";
+
+        for (const repo of repos) {
+            const translatedDescription = await translateDescription(repo.description || "설명이 제공되지 않습니다.");
+            const listItem = document.createElement("li");
+            listItem.innerHTML = `
+                <a href="#" onclick="openRepoModal('${repo.owner.login}', '${repo.name}')">${repo.name}</a>
+                <p>${translatedDescription}</p>
+                <p>소유자: ${repo.owner.login}</p>
+                <button onclick="toggleBookmark('${repo.id}', '${repo.name}', '${repo.owner.login}', '${repo.html_url}', '${repo.description}')">북마크 추가</button>
+            `;
+            recommendationsList.appendChild(listItem);
+        }
+    } catch (error) {
+        console.error("추천 리포지토리 로드 중 오류 발생:", error);
+        alert(`추천 리포지토리 로드 중 오류가 발생했습니다: ${error.message}`);
+    }
 }
 
 // 로그인 폼 표시
@@ -51,15 +73,16 @@ async function submitLogin(event) {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error);
 
-        // 토큰과 함께 사용자 아이디를 저장합니다.
+        // 토큰과 함께 사용자 아이디를 localStorage에 저장합니다.
         localStorage.setItem("token", result.token);
         localStorage.setItem("user_id", result.userId);
         console.log("로그인 성공! 저장된 토큰:", result.token);
         
-        // 로그인 후 북마크 불러오기
-        loadBookmarks();
+        // 로그인 후 페이지 새로고침
+        window.location.reload();
     } catch (error) {
         console.error("로그인 실패:", error);
+        alert(`로그인 실패: ${error.message}`);
     }
 }
 
@@ -117,7 +140,7 @@ function getUserIdFromToken(token) {
 }
 
 // 북마크 추가 및 삭제를 위한 함수 (원하는 경우 getUserIdFromToken 대신 localStorage에서 user_id 사용 가능)
-async function toggleBookmark(repoId, name, owner, url) {
+async function toggleBookmark(repoId, name, owner, url, description) {
     const token = localStorage.getItem('token');
     if (!token) {
         alert('로그인이 필요합니다.');
@@ -131,13 +154,18 @@ async function toggleBookmark(repoId, name, owner, url) {
         return;
     }
 
+    if (!repoId || !name || !owner || !url) {
+        alert('필수 값이 누락되었습니다.');
+        return;
+    }
+
     const response = await fetch(`${apiUrl}/bookmarks`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ user_id: userId, repo_id: repoId, name, owner, url })
+        body: JSON.stringify({ user_id: userId, repo_id: repoId, name, owner, full_name: `${owner}/${name}`, url, description })
     });
 
     const result = await response.json();
@@ -155,6 +183,7 @@ async function loadBookmarks() {
         const token = localStorage.getItem("token");
         if (!token) {
             console.log("🚨 로그인 필요! 북마크 로드 중단.");
+            showLoginForm();
             return;
         }
 
@@ -167,6 +196,10 @@ async function loadBookmarks() {
         if (!response.ok) {
             const errorResponse = await response.json();
             console.error("서버 응답 오류:", errorResponse);
+            if (response.status === 401) {
+                showLoginForm();
+                return;
+            }
             throw new Error(`서버 응답 오류: ${response.status}`);
         }
 
@@ -186,17 +219,19 @@ async function loadBookmarks() {
         bookmarksList.innerHTML = ""; // 기존 목록 초기화
 
         // 북마크 UI 업데이트
-        bookmarks.forEach(bookmark => {
+        for (const bookmark of bookmarks) {
+            const translatedDescription = await translateDescription(bookmark.description || "설명이 제공되지 않습니다.");
             const listItem = document.createElement("li");
             listItem.innerHTML = `
                 <a href="#" onclick="openRepoModal('${bookmark.owner}', '${bookmark.name}')">
                     ${bookmark.name}
                 </a>
+                <p>${translatedDescription}</p>
                 <p>소유자: ${bookmark.owner}</p>
                 <button onclick="removeBookmark('${bookmark.id}')">삭제</button>
             `;
             bookmarksList.appendChild(listItem);
-        });
+        }
 
         console.log("✅ 북마크 UI 업데이트 완료!");
     } catch (error) {
@@ -241,6 +276,8 @@ function closeModal() {
 
 // 리포지토리 클릭 시 모달 열기 및 내용 가져오기
 async function openRepoModal(owner, repo) {
+    currentOwner = owner;
+    currentRepo = repo;
     document.getElementById("repoModal").style.display = "block";
     document.getElementById("repoTitle").textContent = repo;
     currentPath = '';
@@ -254,6 +291,10 @@ async function fetchRepoContents(owner, repo, path) {
         const response = await fetch(`${apiUrl}/repo/${owner}/${repo}/contents?path=${path}`);
         if (!response.ok) throw new Error('리포지토리 내용을 불러오지 못했습니다.');
         const data = await response.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+            throw new Error('리포지토리 내용을 불러오지 못했습니다.');
+        }
 
         const repoContents = document.getElementById("repoContents");
         repoContents.innerHTML = "";
@@ -286,26 +327,82 @@ function enterDirectory(owner, repo, dirName) {
 }
 
 // 뒤로 가기
-function goBack(owner, repo) {
+function goBack() {
     if (pathStack.length > 0) {
         currentPath = pathStack.pop();
-        fetchRepoContents(owner, repo, currentPath);
+        fetchRepoContents(currentOwner, currentRepo, currentPath);
     }
 }
 
 // 파일 내용 가져오기
 async function fetchFileContent(owner, repo, filePath) {
     try {
-        const response = await fetch(`${apiUrl}/repo/${owner}/${repo}/contents/${filePath}`);
-        if (!response.ok) throw new Error('파일 내용을 불러오지 못했습니다.');
-        const data = await response.json();
+        console.log('파일 내용 가져오기 시도:', owner, repo, filePath); // 로그 추가
 
+        if (!GITHUB_TOKEN || GITHUB_TOKEN === 'YOUR_GITHUB_TOKEN') {
+            console.error('GitHub API 토큰이 설정되지 않았습니다.');
+            alert('GitHub API 토큰이 설정되지 않았습니다. .env 파일을 확인하고 토큰을 입력해주세요.');
+            document.getElementById("fileViewer").style.display = "block";
+            document.getElementById("fileName").textContent = filePath;
+            document.getElementById("fileContent").textContent = "GitHub API 토큰이 설정되지 않았습니다. .env 파일을 확인하고 토큰을 입력해주세요.";
+            return;
+        }
+
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`, // GitHub API 토큰 사용
+                'Accept': 'application/vnd.github.v3.raw', // raw content를 받기 위해 추가
+            },
+        });
+
+        if (response.status === 401) {
+            console.error('GitHub API 인증 실패:', owner, repo, filePath); // 로그 추가
+            document.getElementById("fileViewer").style.display = "block";
+            document.getElementById("fileName").textContent = filePath;
+            document.getElementById("fileContent").textContent = "GitHub API 인증에 실패했습니다. 토큰을 확인해주세요.";
+            return;
+        }
+
+        if (response.status === 404) {
+            console.log('파일을 찾을 수 없습니다:', owner, repo, filePath); // 로그 추가
+            document.getElementById("fileViewer").style.display = "block";
+            document.getElementById("fileName").textContent = filePath;
+            document.getElementById("fileContent").textContent = "파일을 찾을 수 없습니다.";
+            return;
+        }
+
+        if (!response.ok) {
+            console.error('파일 내용 가져오기 실패:', owner, repo, filePath, response.status, response.statusText); // 로그 추가
+            throw new Error(`파일 내용을 불러오지 못했습니다. HTTP 상태 코드: ${response.status}`);
+        }
+
+        const fileExtension = filePath.split('.').pop().toLowerCase();
+
+        if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg'].includes(fileExtension)) {
+            document.getElementById("fileViewer").style.display = "block";
+            document.getElementById("fileName").textContent = filePath;
+            document.getElementById("fileContent").textContent = "이미지 파일은 미리보기로 볼 수 없습니다.";
+            return;
+        }
+
+        const data = await response.text();
+        console.log('파일 내용 가져오기 성공:', owner, repo, filePath); // 로그 추가
         document.getElementById("fileViewer").style.display = "block";
         document.getElementById("fileName").textContent = filePath;
-        document.getElementById("fileContent").textContent = atob(data.content);
+        document.getElementById("fileContent").textContent = data;
+
     } catch (error) {
         console.error("파일 내용을 불러오는 중 오류 발생:", error);
+        document.getElementById("fileViewer").style.display = "block";
+        document.getElementById("fileName").textContent = filePath;
+        document.getElementById("fileContent").textContent = "파일 내용을 불러오는 중 오류가 발생했습니다.";
     }
+}
+
+// 모달 닫기
+function closeRepoModal() {
+    document.getElementById('repoModal').style.display = 'none';
 }
 
 // 추천 리포지토리와 검색 리포지토리 불러오기
@@ -319,7 +416,7 @@ document.addEventListener("DOMContentLoaded", function () {
     
             fetch(`${apiUrl}/search?query=${query}`)
                 .then(response => response.json())
-                .then(data => {
+                .then(async data => {
                     if (!Array.isArray(data)) {
                         throw new Error("잘못된 검색 응답");
                     }
@@ -332,7 +429,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
     
-    function displaySearchResults(repositories) {
+    async function displaySearchResults(repositories) {
         const resultsList = document.getElementById("searchResultsList");
         if (!resultsList) {
             console.error("❌ 오류: searchResultsList 요소를 찾을 수 없음!");
@@ -341,20 +438,21 @@ document.addEventListener("DOMContentLoaded", function () {
     
         resultsList.innerHTML = ""; 
     
-        repositories.forEach(repo => {
+        for (const repo of repositories) {
+            const translatedDescription = await translateDescription(repo.description || "설명이 제공되지 않습니다.");
             const listItem = document.createElement("li");
             listItem.innerHTML = `
                 <a href="#" onclick="openRepoModal('${repo.owner.login}', '${repo.name}')">
                     ${repo.name}
                 </a>
-                <p>${repo.description ? repo.description : "설명이 제공되지 않습니다."}</p>
+                <p>${translatedDescription}</p>
                 <p>소유자: ${repo.owner.login}</p>
-                <button onclick="addBookmark('${repo.id}', '${repo.name}', '${repo.owner.login}', '${repo.full_name}', '${repo.url}')">
+                <button onclick="toggleBookmark('${repo.id}', '${repo.name}', '${repo.owner.login}', '${repo.html_url}', '${repo.description}')">
                     북마크 추가
                 </button>
             `;
             resultsList.appendChild(listItem);
-        });
+        }
     
         console.log("✅ 검색 결과가 화면에 추가됨!");
     }
@@ -364,14 +462,5 @@ document.addEventListener("DOMContentLoaded", function () {
         searchInput.addEventListener("input", searchRepositories);
     } else {
         console.error("❌ 오류: 검색 입력창(searchInput)을 찾을 수 없음!");
-    }
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("페이지 로드 완료");
-    toggleLogin();
-    loadRecommendations();
-    if (localStorage.getItem('token')) {
-        loadBookmarks();  // 로그인한 경우 북마크 불러오기
     }
 });

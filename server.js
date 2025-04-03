@@ -1,310 +1,292 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const sqlite3 = require('sqlite3').verbose();
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
-app.use(express.json());
+const port = 3000;
+
 app.use(cors());
+app.use(express.json());
 
-const db = new sqlite3.Database('./database.sqlite');
+// SQLite 데이터베이스 연결
+const db = new sqlite3.Database('github_dashboard.db', (err) => {
+    if (err) {
+        console.error('데이터베이스 연결 실패:', err);
+    } else {
+        console.log('데이터베이스 연결 성공');
+        db.run(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL
+            )
+        `);
+        db.run(`
+            CREATE TABLE IF NOT EXISTS bookmarks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                description TEXT
+            )
+        `);
+        db.run(`
+            CREATE TABLE IF NOT EXISTS repositories (
+                repo_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                description TEXT
+            )
+        `);
+    }
+});
 
-const saltRounds = 10;
+// JWT 시크릿 키
+const secretKey = process.env.JWT_SECRET || 'your-secret-key';
 
-const session = require('express-session');
-
-app.use(session({
-    secret: 'your_secret_key',
-    resave: false,
-    saveUninitialized: true,
-    cookie: { secure: false } // HTTPS 환경이라면 true로 설정
-}));
-
-// 회원가입
+// 회원가입 API
 app.post('/register', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ error: '이름과 비밀번호를 입력해주세요.' });
+        return res.status(400).json({ error: '아이디와 비밀번호를 입력해주세요.' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-    const query = 'INSERT INTO users (username, password) VALUES (?, ?)';
-    db.run(query, [username, hashedPassword], function (err) {
+        db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], function(err) {
+            if (err) {
+                if (err.code === 'SQLITE_CONSTRAINT') {
+                    return res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
+                }
+                console.error('회원가입 오류:', err);
+                return res.status(500).json({ error: '회원가입에 실패했습니다.' });
+            }
+
+            console.log(`사용자 ${username} 회원가입 성공`);
+            res.status(201).json({ message: '회원가입 성공' });
+        });
+    } catch (error) {
+        console.error('비밀번호 해싱 오류:', error);
+        res.status(500).json({ error: '회원가입에 실패했습니다.' });
+    }
+});
+
+// 로그인 API
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ error: '아이디와 비밀번호를 입력해주세요.' });
+    }
+
+    db.get('SELECT id, username, password FROM users WHERE username = ?', [username], async (err, user) => {
         if (err) {
-            return res.status(500).json({ error: '회원가입 실패', details: err.message });
+            console.error('로그인 오류:', err);
+            return res.status(500).json({ error: '로그인에 실패했습니다.' });
         }
-        res.json({ message: '회원가입 성공', userId: this.lastID });
+
+        if (!user) {
+            return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+        }
+
+        try {
+            const passwordMatch = await bcrypt.compare(password, user.password);
+
+            if (passwordMatch) {
+                const token = jwt.sign({ userId: user.id, username: user.username }, secretKey, { expiresIn: '1h' });
+                console.log(`사용자 ${username} 로그인 성공`);
+                res.json({ message: '로그인 성공', token: token, userId: user.id });
+            } else {
+                res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+            }
+        } catch (error) {
+            console.error('비밀번호 비교 오류:', error);
+            res.status(500).json({ error: '로그인에 실패했습니다.' });
+        }
     });
 });
 
-// 로그인
-app.post('/login', (req, res) => {
-  const { username, password } = req.body;
-
-  db.get('SELECT * FROM users WHERE username = ?', [username], async (err, row) => {
-      if (err || !row || !(await bcrypt.compare(password, row.password))) {
-          return res.status(400).json({ error: '로그인 실패' });
-      }
-
-      const token = jwt.sign({ userId: row.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-      res.json({ message: '로그인 성공', token, userId: row.id });
-  });
-});
-
-// 세션 체크
-app.get('/check-session', (req, res) => {
-  if (req.session.userId) {
-      res.json({ loggedIn: true, userId: req.session.userId });
-  } else {
-      res.json({ loggedIn: false });
-  }
-});
-
-// 검색 API (GitHub 리포지토리 검색)
-app.get('/search', async (req, res) => {
-    const { query } = req.query;
-    if (!query) return res.status(400).json({ error: '검색어를 입력하세요.' });
-
+// 추천 리포지토리 API
+app.get('/recommendations', async (req, res) => {
     try {
-        const response = await axios.get('https://api.github.com/search/repositories', {
-            params: { q: query, per_page: 10 },
-            headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
+        const response = await axios.get('https://api.github.com/search/repositories?q=stars:>10000&sort=stars&order=desc&per_page=10', {
+            headers: {
+                'Authorization': `token ${process.env.GITHUB_TOKEN}`
+            }
         });
 
-        res.json(response.data.items);
+        const repos = response.data.items.map(item => ({
+            id: item.id,
+            name: item.name,
+            owner: item.owner,
+            description: item.description,
+            html_url: item.html_url
+        }));
+
+        // repositories 테이블에 저장
+        repos.forEach(repo => {
+            const { id, name, owner, description } = repo;
+            const query = `INSERT OR IGNORE INTO repositories (repo_id, name, owner, description) VALUES (?, ?, ?, ?)`;
+            db.run(query, [id, name, owner.login, description], (err) => {
+                if (err) {
+                    console.error('리포지토리 저장 중 오류 발생:', err);
+                }
+            });
+        });
+
+        res.json(repos);
     } catch (error) {
-        res.status(500).json({ error: 'GitHub API 요청 실패', details: error.response?.data || error.message });
+        console.error('추천 리포지토리 로드 중 오류 발생:', error);
+        res.status(500).json({ message: '추천 리포지토리를 불러오지 못했습니다.' });
     }
 });
 
-// 북마크 추가
+// 검색 API
+app.get('/search', async (req, res) => {
+    const { query } = req.query;
+
+    try {
+        const response = await axios.get(`https://api.github.com/search/repositories?q=${query}&sort=stars&order=desc&per_page=10`, {
+            headers: {
+                'Authorization': `token ${process.env.GITHUB_TOKEN}`
+            }
+        });
+
+        const repos = response.data.items.map(item => ({
+            id: item.id,
+            name: item.name,
+            owner: item.owner,
+            description: item.description,
+            html_url: item.html_url
+        }));
+
+        res.json(repos);
+    } catch (error) {
+        console.error('리포지토리 검색 중 오류 발생:', error);
+        res.status(500).json({ message: '리포지토리를 검색하지 못했습니다.' });
+    }
+});
+
+// 북마크 추가 API
 app.post('/bookmarks', (req, res) => {
-    const { repo_id, name, owner, full_name, url, user_id } = req.body;
+    const { repo_id, name, owner, full_name, url, user_id, description } = req.body;
 
     if (!repo_id || !name || !owner || !full_name || !url || !user_id) {
         return res.status(400).json({ message: '필수 값이 누락되었습니다.' });
     }
 
-    const query = `INSERT INTO bookmarks (repo_id, name, owner, full_name, url, user_id) 
-                   VALUES (?, ?, ?, ?, ?, ?)`;
+    const query = `INSERT INTO bookmarks (repo_id, name, owner, full_name, url, user_id, description) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
-    db.run(query, [repo_id, name, owner, full_name, url, user_id], function(err) {
+    db.run(query, [repo_id, name, owner, full_name, url, user_id, description], function(err) {
         if (err) {
             console.error('북마크 저장 중 오류 발생:', err);
-            return res.status(500).json({ message: '북마크 저장 실패' });
+            return res.status(500).json({ message: '북마크를 저장하지 못했습니다.' });
         }
-
-        res.status(201).json({ message: '북마크가 성공적으로 저장되었습니다.' });
+        res.json({ message: '북마크 저장 성공', bookmarkId: this.lastID });
     });
 });
 
-// 북마크 목록 조회
-app.get('/bookmarks', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: '로그인이 필요합니다.' });
-  }
+// 북마크 목록 가져오기
+app.get('/bookmarks', (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+        return res.status(401).json({ message: '토큰이 없습니다.' });
+    }
 
-  const token = authHeader.split(' ')[1];
-  try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const userId = decoded.userId;
-
-      db.all('SELECT repo_id, name, owner, full_name, url FROM bookmarks WHERE user_id = ?', [userId], async (err, rows) => {
-          if (err) {
-              return res.status(500).json({ error: '북마크 목록 조회 실패', details: err.message });
-          }
-          if (!rows || rows.length === 0) {
-              return res.json([]);
-          }
-
-          const bookmarks = rows.map(row => ({
-              id: row.repo_id,
-              name: row.name,
-              owner: row.owner,
-              full_name: row.full_name,
-              url: row.url
-          }));
-          
-          res.json(bookmarks);
-      });
-  } catch (error) {
-      return res.status(401).json({ error: '유효하지 않은 토큰' });
-  }
-});
-
-// 북마크 삭제
-app.delete('/bookmarks/:repoId', async (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
-      return res.status(401).json({ error: '로그인이 필요합니다.' });
-  }
-
-  try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const userId = decoded.userId;
-      const repoId = req.params.repoId;
-
-      // 사용자의 북마크인지 확인 후 삭제
-      db.run('DELETE FROM bookmarks WHERE repo_id = ? AND user_id = ?', [repoId, userId], function (err) {
-          if (err) {
-              return res.status(500).json({ error: '북마크 삭제 실패', details: err.message });
-          }
-          if (this.changes === 0) {
-              return res.status(404).json({ error: '북마크를 찾을 수 없습니다.' });
-          }
-          res.json({ message: '북마크 삭제 완료' });
-      });
-  } catch (error) {
-      return res.status(401).json({ error: '유효하지 않은 토큰' });
-  }
-});
-
-// 검색어 저장
-app.post('/search-history', (req, res) => {
-  const { user_id, query } = req.body;
-
-  if (!user_id || !query) {
-      return res.status(400).json({ error: 'user_id와 검색어(query)가 필요합니다.' });
-  }
-
-  const insertQuery = `INSERT INTO search_history (user_id, query) VALUES (?, ?)`;
-
-  db.run(insertQuery, [user_id, query], function (err) {
-      if (err) {
-          return res.status(500).json({ error: '검색 기록 저장 실패', details: err.message });
-      }
-      res.json({ message: '검색 기록 저장 완료' });
-  });
-});
-
-// 추천 API
-app.get('/recommendations', (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-
-  if (!token) {
-      return fetchTrendingRepos(res);
-  }
-
-  try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const userId = decoded.userId;
-
-      db.all(`
-          SELECT DISTINCT full_name FROM bookmarks WHERE user_id = ?
-          UNION
-          SELECT DISTINCT query FROM search_history WHERE user_id = ?
-          LIMIT 8
-      `, [userId, userId], async (err, rows) => {
-          if (err) {
-              console.error('추천 데이터 조회 오류:', err);
-              return res.status(500).json({ error: '추천 데이터 조회 실패', details: err.message });
-          }
-
-          if (rows.length === 0) {
-              return fetchTrendingRepos(res);
-          }
-
-          const searchQueries = rows.map(row => row.full_name || row.query).join(' ');
-
-          try {
-              const response = await axios.get('https://api.github.com/search/repositories', {
-                  params: { q: searchQueries, per_page: 8 },
-                  headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
-              });
-
-              let recommendations = response.data.items;
-
-              if (recommendations.length < 5) {
-                  const extraResponse = await axios.get('https://api.github.com/search/repositories', {
-                      params: { q: 'stars:>10000', sort: 'stars', order: 'desc', per_page: 8 },
-                      headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
-                  });
-
-                  recommendations = recommendations.concat(extraResponse.data.items).slice(0, 8);
-              }
-
-              res.json(recommendations);
-          } catch (error) {
-              res.status(500).json({ error: 'GitHub API 요청 실패', details: error.response?.data || error.message });
-          }
-      });
-
-  } catch (error) {
-      return fetchTrendingRepos(res);
-  }
-});
-
-// 인기 리포지토리 가져오기 (최소 5개, 최대 8개)
-function fetchTrendingRepos(res) {
-    axios.get('https://api.github.com/search/repositories', {
-        params: { q: 'stars:>10000', sort: 'stars', order: 'desc', per_page: 8 },
-        headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
-    })
-    .then(response => {
-        const trendingRepos = response.data.items;
-
-        // 최소 5개 이하일 경우 추가 요청
-        if (trendingRepos.length < 5) {
-            axios.get('https://api.github.com/search/repositories', {
-                params: { q: 'stars:>5000', sort: 'stars', order: 'desc', per_page: 8 },
-                headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` },
-            })
-            .then(extraResponse => {
-                res.json(trendingRepos.concat(extraResponse.data.items).slice(0, 8));
-            })
-            .catch(err => res.json(trendingRepos));
-        } else {
-            res.json(trendingRepos);
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+            console.error('JWT 검증 오류:', err);
+            return res.status(403).json({ message: '유효하지 않은 토큰입니다.', error: err.message });
         }
-    })
-    .catch(error => res.status(500).json({ error: '인기 리포지토리 조회 실패', details: error.response?.data || error.message }));
-}
 
-// 리포지토리의 폴더 및 파일 목록을 가져오는 API
+        const userId = decoded.userId;
+        const query = `SELECT id, repo_id, name, owner, full_name, url, description FROM bookmarks WHERE user_id = ?`;
+
+        db.all(query, [userId], (err, rows) => {
+            if (err) {
+                console.error('북마크 로드 중 오류 발생:', err);
+                return res.status(500).json({ message: '북마크를 불러오지 못했습니다.', error: err.message });
+            }
+            console.log('북마크 목록:', rows); // 로그 추가
+            res.json(rows);
+        });
+    });
+});
+
+// 북마크 삭제 API
+app.delete('/bookmarks/:id', (req, res) => {
+    const bookmarkId = req.params.id;
+
+    db.run('DELETE FROM bookmarks WHERE id = ?', [bookmarkId], function(err) {
+        if (err) {
+            console.error('북마크 삭제 중 오류 발생:', err);
+            return res.status(500).json({ message: '북마크를 삭제하지 못했습니다.' });
+        }
+
+        if (this.changes > 0) {
+            res.json({ message: '북마크 삭제 성공' });
+        } else {
+            res.status(404).json({ message: '북마크를 찾을 수 없습니다.' });
+        }
+    });
+});
+
+// 리포지토리 내용 가져오기 API
 app.get('/repo/:owner/:repo/contents', async (req, res) => {
-  const { owner, repo } = req.params;
-  const { path = '' } = req.query;
+    const { owner, repo } = req.params;
+    const path = req.query.path || '';
 
-  try {
-      const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
-          headers: {
-              Authorization: `token ${process.env.GITHUB_TOKEN}`
-          }
-      });
-      res.json(response.data);
-  } catch (error) {
-      console.error('GitHub API 요청 실패:', error.message); // 오류 메시지 출력
-      res.status(500).json({ error: 'GitHub API 요청 실패', details: error.message });
-  }
+    try {
+        const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+            headers: {
+                'Authorization': `token ${process.env.GITHUB_TOKEN}`
+            }
+        });
+
+        res.json(response.data);
+    } catch (error) {
+        console.error('리포지토리 내용 가져오기 오류:', error);
+        res.status(500).json({ message: '리포지토리 내용을 불러오지 못했습니다.' });
+    }
 });
 
-// 리포지토리 파일의 내용을 가져오는 API
-app.get('/repo/:owner/:repo/contents/:filePath', async (req, res) => {
-  const { owner, repo, filePath } = req.params;
+// 파일 내용 가져오기 API
+app.get('/repo/:owner/:repo/contents/:path', async (req, res) => {
+    const { owner, repo, path } = req.params;
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
-  try {
-      const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`, {
-          headers: {
-              Authorization: `token ${process.env.GITHUB_TOKEN}`
-          }
-      });
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3.raw',
+            },
+            responseType: 'text',
+        });
 
-      const content = Buffer.from(response.data.content, 'base64').toString('utf8');
-      res.json({ content });
-  } catch (error) {
-      res.status(500).json({ error: 'GitHub API 요청 실패', details: error.message });
-  }
+        if (response.status === 200) {
+            console.log('파일 내용 가져오기 성공:', url); // 로그 추가
+            res.send(response.data);
+        } else {
+            console.error('파일 내용 가져오기 실패:', url, response.status, response.statusText); // 로그 추가
+            res.status(response.status).send({ message: '파일을 불러오지 못했습니다.', status: response.status, statusText: response.statusText });
+        }
+    } catch (error) {
+        console.error('파일 내용 가져오기 오류:', url, error.message); // 로그 추가
+        res.status(500).send({ message: '파일을 불러오지 못했습니다.', error: error.message });
+    }
 });
 
-// 서버 실행
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`서버 실행 중: http://localhost:${PORT}`);
+app.listen(port, () => {
+    console.log(`서버가 ${port} 포트에서 실행 중입니다.`);
 });

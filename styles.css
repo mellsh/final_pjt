@@ -1,39 +1,34 @@
-html, body {
-    overflow: auto !important;
-    height: auto !important;
-  }
-
 body {
-    background-color: #2f2f2f;
-    color: #fff;
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #222;
+    color: #ddd; /* 폰트 색상 변경 */
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
     text-align: center;
 }
 
 h2, h3 {
     margin: 20px 0;
+    color: #fff;
 }
 
 button {
-    background-color: #9b59b6;
+    background-color: #3498db; /* 버튼 색상 변경 */
     color: white;
     border: none;
     padding: 10px 20px;
-    border-radius: 20px;
+    border-radius: 5px;
     cursor: pointer;
-    margin: 10px;
+    margin: 5px;
     transition: background-color 0.3s;
 }
 
 button:hover {
-    background-color: #8e44ad;
+    background-color: #2980b9;
 }
 
 input {
@@ -48,7 +43,7 @@ input {
 
 input:focus {
     outline: none;
-    border: 2px solid #9b59b6;
+    border: 2px solid #3498db;
 }
 
 ul {
@@ -63,13 +58,13 @@ li {
     margin: 10px;
     background-color: #333;
     padding: 10px;
-    border-radius: 10px;
+    border-radius: 5px;
     width: 200px;
     text-align: center;
 }
 
 a {
-    color: #9b59b6;
+    color: #3498db;
     text-decoration: none;
     display: block;
 }
@@ -115,22 +110,26 @@ form {
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.9); /* 배경색을 더 어둡게 변경 */
+    overflow: auto; /* 내용이 많을 경우 스크롤 활성화 */
 }
 
 .modal-content {
-    background-color: white;
-    margin: 10% auto;
+    background-color: #333;
+    margin: 5% auto;
     padding: 20px;
-    width: 50%;
+    width: 80%; /* 모달 너비를 늘림 */
+    max-height: 80vh; /* 모달 최대 높이 설정 */
     border-radius: 10px;
-    color: black;
+    color: #ddd;
+    overflow: auto; /* 내용이 많을 경우 스크롤 활성화 */
 }
 
 .close {
     float: right;
     font-size: 20px;
     cursor: pointer;
+    color: #ddd;
 }
 
 #repoContents {
@@ -140,21 +139,24 @@ form {
 
 #repoContents li {
     padding: 10px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #555;
     cursor: pointer;
+    color: #ddd;
 }
 
 #repoContents li:hover {
-    background-color: #f4f4f4;
+    background-color: #444;
 }
 
 #fileViewer {
     background-color: #222;
-    color: #fff;
+    color: #ddd;
     padding: 10px;
     border-radius: 5px;
     margin-top: 10px;
     overflow-x: auto;
     max-height: 400px;
+    font-family: 'Courier New', Courier, monospace; /* VS Code와 유사한 폰트 */
+    text-align: left; /* 텍스트 왼쪽 정렬 */
+    white-space: pre-wrap; /* 들여쓰기 및 공백 유지, 자동 줄 바꿈 활성화 */
 }
-
