@@ -1,6 +1,45 @@
 const apiUrl = 'http://localhost:3000'; // API 엔드포인트
 const GITHUB_TOKEN = 'YOUR_GITHUB_TOKEN'; // GitHub API 토큰을 직접 설정
 
+// 회원가입 폼 표시
+function showRegisterForm() {
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('registerForm').style.display = 'block';
+}
+
+// 로그인 폼 표시
+function showLoginForm() {
+    document.getElementById('authModal').style.display = 'block';
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('registerForm').style.display = 'none';
+}
+
+// 회원가입 요청: 회원가입 성공 시 로그인 폼으로 이동
+async function submitRegister(event) {
+    event.preventDefault();
+
+    const username = document.getElementById("registerUsername").value;
+    const password = document.getElementById("registerPassword").value;
+
+    try {
+        const response = await fetch(`${apiUrl}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+
+        // 회원가입 성공 시 로그인 폼으로 이동
+        alert("회원가입 성공! 이제 로그인하세요.");
+        showLoginForm();
+    } catch (error) {
+        console.error("회원가입 실패:", error);
+        alert(`회원가입 실패: ${error.message}`);
+    }
+}
+
 // 리포지토리 설명을 한국어로 번역하는 함수
 async function translateDescription(description) {
     return description; // 실제 번역 API를 사용하려면 이 부분을 수정하세요
@@ -19,13 +58,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.error("DOM 로드 중 오류 발생:", error);
     }
 });
-
-// 로그인 폼 표시
-function showLoginForm() {
-    document.getElementById('authModal').style.display = 'block';
-    document.getElementById('loginForm').style.display = 'block';
-    document.getElementById('registerForm').style.display = 'none';
-}
 
 // 로그인 요청: 로그인 성공 시 토큰과 userId를 localStorage에 저장
 async function submitLogin(event) {
