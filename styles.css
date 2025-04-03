@@ -114,6 +114,8 @@ footer {
     width: 80%;
     max-width: 600px;
     border: 1px solid #30363d; /* 모달 테두리 색상 */
+    max-height: 80vh; /* 모달 최대 높이 설정 */
+    overflow-y: auto; /* 내용이 넘칠 경우 스크롤 표시 */
 }
 
 .close-button {
@@ -216,6 +218,8 @@ button:hover {
     width: 80%;
     max-width: 800px;
     text-align: left;
+    max-height: 80vh; /* 모달 최대 높이 설정 */
+    overflow-y: auto; /* 내용이 넘칠 경우 스크롤 표시 */
 }
 
 #bookmarkList {

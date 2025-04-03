@@ -26,20 +26,20 @@
 
     <section id="search">
         <div class="container">
-            <input type="text" id="searchInput" placeholder="리포지토리 검색...">
+            <input type="text" id="searchInput" placeholder="리포지토리 검색..." onkeyup="searchRepositories(event)">
         </div>
     </section>
 
     <section id="main">
         <div class="container">
             <article id="content">
-                <h1>추천 리포지토리</h1>
-                <ul id="recommendationsList">
-                    <!-- 추천 리포지토리 목록이 여기에 표시됩니다 -->
-                </ul>
                 <h1>검색 결과</h1>
                 <ul id="searchResultsList">
                     <!-- 검색 결과 목록이 여기에 표시됩니다 -->
+                </ul>
+                <h1>추천 리포지토리</h1>
+                <ul id="recommendationsList">
+                    <!-- 추천 리포지토리 목록이 여기에 표시됩니다 -->
                 </ul>
             </article>
         </div>
@@ -72,7 +72,7 @@
 
     <!-- 리포지토리 모달 -->
     <div id="repoModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-large">
             <span class="close-button" onclick="closeRepoModal()">×</span>
             <h2 id="repoTitle"></h2>
             <ul id="repoContents">
