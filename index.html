@@ -1,66 +1,102 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Repo Manager</title>
+    <title>GitHub 리포지토리 뷰어</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <button id="loginBtn" onclick="showLoginForm()">Login</button>
-    <button id="logoutBtn" style="display: none;" onclick="logoutUser()">Logout</button>
- 
-    <!-- 로그인/회원가입 모달 -->
-    <div id="authModal" style="display: none;">
-        <form id="loginForm" onsubmit="submitLogin(event)">
-            <input type="text" id="username" placeholder="Username" required />
-            <input type="password" id="password" placeholder="Password" required />
-            <button type="submit">Login</button>
-            <button type="button" onclick="showRegisterForm()">Go to Register</button>
-        </form>
- 
-        <form id="registerForm" onsubmit="submitRegister(event)" style="display: none;">
-            <input type="text" id="registerUsername" placeholder="Username" required />
-            <input type="password" id="registerPassword" placeholder="Password" required />
-            <button type="submit">Register</button>
-            <button type="button" onclick="showLoginForm()">Go to Login</button>
-        </form>
-        <button id="closeModal" onclick="closeModal()">Close</button>
+    <header>
+        <div class="container">
+            <div id="branding">
+                <h1><span class="highlight">GitHub</span> 리포지토리 뷰어</h1>
+            </div>
+            <nav>
+                <ul>
+                    <li><button id="bookmarkBtn" onclick="openBookmarkModal()">북마크</button></li>
+                    <li>
+                        <button id="loginBtn" onclick="showLoginForm()">로그인</button>
+                        <button id="logoutBtn" style="display:none;" onclick="logoutUser()">로그아웃</button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <section id="search">
+        <div class="container">
+            <input type="text" id="searchInput" placeholder="리포지토리 검색...">
+        </div>
+    </section>
+
+    <section id="main">
+        <div class="container">
+            <article id="content">
+                <h1>추천 리포지토리</h1>
+                <ul id="recommendationsList">
+                    <!-- 추천 리포지토리 목록이 여기에 표시됩니다 -->
+                </ul>
+                <h1>검색 결과</h1>
+                <ul id="searchResultsList">
+                    <!-- 검색 결과 목록이 여기에 표시됩니다 -->
+                </ul>
+            </article>
+        </div>
+    </section>
+
+    <footer>
+        <p>GitHub 리포지토리 뷰어, Copyright &copy; 2025</p>
+    </footer>
+
+    <!-- 인증 모달 -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal()">×</span>
+            <div id="loginForm">
+                <h2>로그인</h2>
+                <input type="text" id="username" placeholder="아이디">
+                <input type="password" id="password" placeholder="비밀번호">
+                <button onclick="submitLogin(event)">로그인</button>
+                <p>계정이 없으신가요? <a href="#" onclick="showRegisterForm()">회원가입</a></p>
+            </div>
+            <div id="registerForm" style="display:none;">
+                <h2>회원가입</h2>
+                <input type="text" id="registerUsername" placeholder="아이디">
+                <input type="password" id="registerPassword" placeholder="비밀번호">
+                <button onclick="submitRegister(event)">회원가입</button>
+                <p>이미 계정이 있으신가요? <a href="#" onclick="showLoginForm()">로그인</a></p>
+            </div>
+        </div>
     </div>
- 
-    <h2>Search GitHub Repositories</h2>
-    <input type="text" id="searchInput" placeholder="검색어 입력" />
-    <ul id="searchResultsList"></ul>
- 
-    <div>
-        <h3>추천 리포지토리</h3>
-        <ul id="recommendationsList"></ul>
-    </div>
- 
-    <div>
-        <h3>북마크 리포지토리</h3>
-        <ul id="bookmarksList"></ul>
-    </div>
- 
-    <div>
-        <h3 style="display: none;">검색 결과</h3>
-        <ul id="searchResultsList"></ul>
-    </div>
- 
-    <!-- 리포지토리 상세 정보 모달 -->
+
+    <!-- 리포지토리 모달 -->
     <div id="repoModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeRepoModal()">&times;</span>
+            <span class="close-button" onclick="closeRepoModal()">×</span>
             <h2 id="repoTitle"></h2>
+            <ul id="repoContents">
+                <!-- 리포지토리 내용이 여기에 표시됩니다 -->
+            </ul>
             <button id="backButton" style="display:none;" onclick="goBack()">뒤로 가기</button>
-            <ul id="repoContents"></ul>
-            <div id="fileViewer" style="display: none;">
+            <div id="fileViewer">
                 <h3 id="fileName"></h3>
                 <pre id="fileContent"></pre>
             </div>
         </div>
     </div>
- 
+
+    <!-- 북마크 모달 -->
+    <div id="bookmarkModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeBookmarkModal()">×</span>
+            <h2>북마크 목록</h2>
+            <ul id="bookmarkList">
+                <!-- 북마크 목록이 여기에 표시됩니다 -->
+            </ul>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>

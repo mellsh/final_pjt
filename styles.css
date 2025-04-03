@@ -1,162 +1,256 @@
+/* 기본 스타일 */
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #222;
-    color: #ddd; /* 폰트 색상 변경 */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    margin: 0;
+    padding: 0;
+    background-color: #0d1117; /* GitHub Dark 배경색 */
+    color: #c9d1d9; /* 기본 글자색 */
+    line-height: 1.5;
+}
+
+.container {
+    width: 80%;
+    margin: auto;
+    overflow: hidden;
+}
+
+/* 헤더 스타일 */
+header {
+    background-color: #161b22; /* 헤더 배경색 */
+    color: #f0f6fc; /* 헤더 글자색 */
+    padding: 1rem 0;
+    border-bottom: 1px solid #30363d; /* 구분선 색상 */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header a {
+    color: #58a6ff; /* 링크 색상 */
+    text-decoration: none;
+}
+
+header nav ul {
+    list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
-    flex-direction: column;
+    justify-content: flex-end;
     align-items: center;
-    justify-content: center;
-    text-align: center;
 }
 
-h2, h3 {
-    margin: 20px 0;
-    color: #fff;
+header nav li {
+    margin-left: 1rem;
 }
 
-button {
-    background-color: #3498db; /* 버튼 색상 변경 */
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    margin: 5px;
-    transition: background-color 0.3s;
+/* 검색 스타일 */
+#search {
+    background-color: #21262d; /* 검색 배경색 */
+    padding: 1rem;
 }
 
-button:hover {
-    background-color: #2980b9;
-}
-
-input {
-    padding: 10px;
-    margin: 10px;
-    border: none;
-    border-radius: 10px;
-    background-color: #444;
-    color: white;
-    width: 300px;
-}
-
-input:focus {
-    outline: none;
-    border: 2px solid #3498db;
-}
-
-ul {
-    list-style-type: none;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-li {
-    margin: 10px;
-    background-color: #333;
-    padding: 10px;
-    border-radius: 5px;
-    width: 200px;
-    text-align: center;
-}
-
-a {
-    color: #3498db;
-    text-decoration: none;
-    display: block;
-}
-
-a:hover {
-    text-decoration: underline;
-}
-
-#authModal {
-    background-color: rgba(0, 0, 0, 0.8);
-    position: fixed;
-    top: 0;
-    left: 0;
+#search input[type="text"] {
     width: 100%;
-    height: 100%;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    background-color: #30363d; /* 입력 배경색 */
+    color: #c9d1d9; /* 입력 글자색 */
+    border: 1px solid #424a53; /* 입력 테두리 색상 */
+    border-radius: 5px;
+}
+
+/* 메인 콘텐츠 스타일 */
+#main {
+    padding: 2rem 0;
     display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
-form {
-    background-color: #444;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+/* 추천 리포지토리 스타일 */
+#content {
+    width: 100%;
+    padding: 0 1rem;
 }
 
-#closeModal {
-    margin-top: 20px;
-    background-color: #e74c3c;
+#recommendationsList li {
+    background-color: #161b22; /* 추천 리포 배경색 */
+    border: 1px solid #30363d; /* 추천 리포 테두리 색상 */
+    margin-bottom: 0.5rem;
+    padding: 1rem;
+    border-radius: 5px;
 }
 
-#closeModal:hover {
-    background-color: #c0392b;
+/* 푸터 스타일 */
+footer {
+    background-color: #161b22; /* 푸터 배경색 */
+    color: #f0f6fc; /* 푸터 글자색 */
+    text-align: center;
+    padding: 1rem 0;
+    margin-top: 2rem;
+    border-top: 1px solid #30363d; /* 푸터 구분선 */
 }
 
-/* 🔹 리포지토리 상세 모달 스타일 */
+/* 모달 스타일 */
 .modal {
     display: none;
     position: fixed;
-    z-index: 1000;
-    left: 0;
     top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.9); /* 배경색을 더 어둡게 변경 */
-    overflow: auto; /* 내용이 많을 경우 스크롤 활성화 */
+    background-color: rgba(0, 0, 0, 0.75); /* 모달 배경색 */
+    z-index: 1000;
 }
 
 .modal-content {
-    background-color: #333;
-    margin: 5% auto;
-    padding: 20px;
-    width: 80%; /* 모달 너비를 늘림 */
-    max-height: 80vh; /* 모달 최대 높이 설정 */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #0d1117; /* 모달 내용 배경색 */
+    color: #c9d1d9; /* 모달 내용 글자색 */
+    padding: 2rem;
     border-radius: 10px;
-    color: #ddd;
-    overflow: auto; /* 내용이 많을 경우 스크롤 활성화 */
+    text-align: center;
+    width: 80%;
+    max-width: 600px;
+    border: 1px solid #30363d; /* 모달 테두리 색상 */
 }
 
-.close {
-    float: right;
-    font-size: 20px;
+.close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 1.5rem;
     cursor: pointer;
-    color: #ddd;
+    color: #c9d1d9; /* 닫기 버튼 색상 */
+}
+
+/* 인증 모달 스타일 */
+#authModal .modal-content {
+    width: 400px;
+}
+
+#authModal input[type="text"],
+#authModal input[type="password"] {
+    width: 100%;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    background-color: #30363d; /* 입력 배경색 */
+    color: #c9d1d9; /* 입력 글자색 */
+    border: 1px solid #424a53; /* 입력 테두리 색상 */
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+#authModal button {
+    background-color: #238636; /* 버튼 배경색 */
+    color: #f0f6fc; /* 버튼 글자색 */
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 1rem;
+}
+
+/* 리포지토리 모달 스타일 */
+#repoModal .modal-content {
+    width: 80%;
+    max-width: 800px;
+    text-align: left;
 }
 
 #repoContents {
-    list-style-type: none;
+    list-style: none;
     padding: 0;
 }
 
 #repoContents li {
-    padding: 10px;
-    border-bottom: 1px solid #555;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #30363d; /* 목록 구분선 */
     cursor: pointer;
-    color: #ddd;
+    color: #58a6ff; /* 파일 목록 색상 */
 }
 
 #repoContents li:hover {
-    background-color: #444;
+    background-color: #21262d; /* 호버 배경색 */
 }
 
 #fileViewer {
-    background-color: #222;
-    color: #ddd;
-    padding: 10px;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid #30363d; /* 파일 뷰어 테두리 */
+    background: #161b22; /* 파일 뷰어 배경색 */
+    display: none;
     border-radius: 5px;
-    margin-top: 10px;
-    overflow-x: auto;
-    max-height: 400px;
-    font-family: 'Courier New', Courier, monospace; /* VS Code와 유사한 폰트 */
-    text-align: left; /* 텍스트 왼쪽 정렬 */
-    white-space: pre-wrap; /* 들여쓰기 및 공백 유지, 자동 줄 바꿈 활성화 */
+}
+
+#fileViewer h3 {
+    color: #f0f6fc; /* 파일 이름 색상 */
+}
+
+#fileContent {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.875rem;
+    color: #c9d1d9; /* 파일 내용 색상 */
+}
+
+/* 버튼 스타일 */
+button {
+    background-color: #238636; /* 버튼 배경색 */
+    color: #f0f6fc; /* 버튼 글자색 */
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 1rem;
+    font-size: 1rem;
+}
+
+button:hover {
+    background-color: #2ea043; /* 호버 시 배경색 */
+}
+
+/* 북마크 모달 스타일 */
+#bookmarkModal .modal-content {
+    width: 80%;
+    max-width: 800px;
+    text-align: left;
+}
+
+#bookmarkList {
+    list-style: none;
+    padding: 0;
+}
+
+#bookmarkList li {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #30363d; /* 목록 구분선 */
+    color: #c9d1d9; /* 북마크 목록 색상 */
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    header nav ul {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    header nav li {
+        margin-left: 0;
+        margin-bottom: 0.5rem;
+    }
+
+    #search input[type="text"] {
+        width: 100%;
+    }
+
+    #main {
+        flex-direction: column;
+    }
+
+    #content {
+        width: 100%;
+        padding: 0;
+    }
 }
